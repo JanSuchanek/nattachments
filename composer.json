@@ -1,0 +1,17 @@
+{
+    "name": "jansuchanek/nattachments",
+    "description": "Universal file attachments component for Nette — upload, delete, reorder, rename, lightbox, PDF preview",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "nette/application": "^3.2",
+        "nette/http": "^3.2",
+        "latte/latte": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "NAttachments\\": "src/"
+        }
+    }
+}

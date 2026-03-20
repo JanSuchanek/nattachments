@@ -1,0 +1,289 @@
+{snippet attachmentsList}
+<div class="card mt-4">
+	<div class="card-header d-flex justify-content-between align-items-center py-2">
+		<h6 class="mb-0">
+			<i class="bi bi-paperclip me-1"></i>Přílohy
+		</h6>
+		<label class="btn btn-sm btn-outline-primary mb-0" style="cursor: pointer;">
+			<i class="bi bi-upload me-1"></i>Nahrát soubory
+			<input type="file" class="attachments-file-input" multiple
+				data-upload-url="{link upload!}"
+				style="display: none;">
+		</label>
+	</div>
+
+	<div class="card-body p-3">
+		{* Preloader *}
+		<div class="attachments-preloader" style="display: none; text-align: center; padding: 20px;">
+			<div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+			<span class="text-muted ms-2">Nahrávám soubory…</span>
+		</div>
+
+		{* Empty state *}
+		<div n:if="!count($attachments)" class="text-center text-muted py-4">
+			Zatím neobsahuje žádné přílohy.
+		</div>
+
+		{* Attachment list with drag & drop *}
+		<div n:if="count($attachments)>0" class="attachments-sortable-container" data-reorder-url="{link reorder!}" style="display: flex; flex-direction: column; gap: 6px;">
+			{foreach $attachments as $att}
+			{var $fn = is_object($att) ? ($att->filename ?? '') : ($att['filename'] ?? '')}
+			{var $origName = is_object($att) ? ($att->originalName ?? $fn) : ($att['originalName'] ?? $fn)}
+			{var $dispName = is_object($att) ? ($att->displayName ?? $origName) : ($att['displayName'] ?? $origName)}
+			{var $fsize = is_object($att) ? ($att->filesize ?? 0) : ($att['filesize'] ?? 0)}
+			{var $attId = is_object($att) ? ($att->id ?? 0) : ($att['id'] ?? 0)}
+			{var $ext = strtolower(pathinfo($origName, \PATHINFO_EXTENSION))}
+			<div class="file-card d-flex align-items-center gap-2 px-3 py-2 border rounded" data-id="{$attId}" style="background: #f8fafc; transition: background .15s;">
+				{* Drag handle *}
+				<div class="attachments-drag-handle text-muted" style="cursor: grab; flex-shrink: 0;" title="Přetáhnout">
+					<i class="bi bi-grip-vertical"></i>
+				</div>
+
+				{* Thumbnail / icon with overlay delete *}
+				<div style="flex-shrink: 0; position: relative;">
+					{if in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])}
+						<a href="{$webPath}{$fn}" class="attachment-lightbox" data-name="{$origName}" style="cursor: pointer; display: block;">
+							<img src="{$webPath}{$fn}" alt="" style="width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0;">
+						</a>
+					{elseif $ext === 'pdf'}
+						<a href="{$webPath}{$fn}" class="attachment-pdf-preview" data-name="{$origName}" style="cursor: pointer; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; background: rgba(239,68,68,.08); border-radius: 6px;">
+							<i class="bi bi-file-earmark-pdf" style="font-size: 20px; color: #ef4444;"></i>
+						</a>
+					{elseif in_array($ext, ['doc', 'docx'])}
+						<div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(59,130,246,.08); border-radius: 6px;">
+							<i class="bi bi-file-earmark-word" style="font-size: 20px; color: #3b82f6;"></i>
+						</div>
+					{elseif in_array($ext, ['xls', 'xlsx'])}
+						<div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(34,197,94,.08); border-radius: 6px;">
+							<i class="bi bi-file-earmark-excel" style="font-size: 20px; color: #22c55e;"></i>
+						</div>
+					{else}
+						<div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(148,163,184,.08); border-radius: 6px;">
+							<i class="bi bi-file-earmark" style="font-size: 20px; color: #94a3b8;"></i>
+						</div>
+					{/if}
+					<a href="{link delete!, fileId => $attId}"
+					   onclick="return confirm('Smazat soubor?')"
+					   class="attachment-delete-btn"
+					   title="Smazat">
+						<i class="bi bi-x"></i>
+					</a>
+				</div>
+
+				{* Editable name + size *}
+				<div style="flex: 1; min-width: 0;">
+					<input type="text" class="attachment-rename-input form-control form-control-sm"
+						value="{$dispName}"
+						data-rename-url="{link rename!, fileId => $attId}">
+					<div class="text-muted" style="font-size: 11px; padding-left: 8px; margin-top: 1px;">
+						{=round($fsize / 1024)} KB
+					</div>
+				</div>
+			</div>
+			{/foreach}
+		</div>
+	</div>
+</div>
+{/snippet}
+
+{* Lightbox overlay *}
+<div id="attachmentLightbox" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.92); backdrop-filter:blur(8px); cursor:zoom-out;">
+	<div style="position:absolute; top:16px; right:16px; display:flex; gap:12px; z-index:10;">
+		<a id="lightboxDownload" href="#" download class="btn btn-sm btn-outline-light"><i class="bi bi-download"></i></a>
+		<button id="lightboxClose" class="btn btn-sm btn-outline-light"><i class="bi bi-x-lg"></i></button>
+	</div>
+	<div style="display:flex; align-items:center; justify-content:center; height:100%; padding:48px;">
+		<img id="lightboxImage" src="" alt="" style="max-width:100%; max-height:100%; border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,.5);">
+	</div>
+	<div id="lightboxCaption" style="position:absolute; bottom:16px; left:0; right:0; text-align:center; color:#94a3b8; font-size:13px;"></div>
+</div>
+
+{* PDF preview modal *}
+<div id="attachmentPdfModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.85); backdrop-filter:blur(8px);">
+	<div style="position:absolute; top:16px; right:16px; display:flex; gap:12px; z-index:10;">
+		<a id="pdfDownload" href="#" download class="btn btn-sm btn-outline-light"><i class="bi bi-download"></i></a>
+		<button id="pdfClose" class="btn btn-sm btn-outline-light"><i class="bi bi-x-lg"></i></button>
+	</div>
+	<div id="pdfTitle" style="position:absolute; top:20px; left:24px; color:#e2e8f0; font-size:15px; font-weight:500;"></div>
+	<div style="padding:56px 24px 24px; height:100%; box-sizing:border-box;">
+		<iframe id="pdfFrame" src="" style="width:100%; height:100%; border:none; border-radius:8px;"></iframe>
+	</div>
+</div>
+
+<style>
+.file-card:hover { background: #f1f5f9 !important; }
+.sortable-ghost { opacity: 0.4; }
+.sortable-chosen { box-shadow: 0 0 0 2px var(--bs-primary, #0d6efd); }
+.attachments-drag-handle:hover { color: #475569 !important; }
+.attachment-delete-btn {
+	position: absolute; top: -6px; right: -6px;
+	width: 18px; height: 18px;
+	background: #ef4444; color: #fff;
+	border-radius: 50%;
+	display: flex; align-items: center; justify-content: center;
+	font-size: 10px; text-decoration: none;
+	box-shadow: 0 1px 3px rgba(0,0,0,.2);
+	opacity: 0; transition: opacity .15s;
+}
+.file-card:hover .attachment-delete-btn { opacity: 1; }
+.attachment-rename-input {
+	border-color: transparent !important;
+	background: transparent !important;
+	padding: 2px 8px !important;
+	font-weight: 500 !important;
+}
+.attachment-rename-input:focus {
+	border-color: var(--bs-primary, #0d6efd) !important;
+	background: #fff !important;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" n:nonce></script>
+<script n:nonce>
+// File upload — vanilla JS
+document.addEventListener('change', function(e) {
+	if (!e.target.classList.contains('attachments-file-input')) return;
+	var input = e.target;
+	var files = input.files;
+	if (!files.length) return;
+
+	var url = input.dataset.uploadUrl;
+	var formData = new FormData();
+	var hasFiles = false;
+
+	for (var i = 0; i < files.length; i++) {
+		if (files[i].size > 10 * 1024 * 1024) {
+			alert('Soubor "' + files[i].name + '" je příliš velký (max 10 MB).');
+			continue;
+		}
+		formData.append('files[]', files[i]);
+		hasFiles = true;
+	}
+
+	if (!hasFiles) return;
+
+	var wrapper = input.closest('[id*="snippet"]') || input.closest('.card');
+	var preloader = wrapper ? wrapper.querySelector('.attachments-preloader') : null;
+	var uploadBtn = input.closest('label');
+
+	if (preloader) preloader.style.display = 'block';
+	if (uploadBtn) uploadBtn.style.opacity = '0.5';
+	input.disabled = true;
+
+	fetch(url, { method: 'POST', body: formData })
+		.then(function() {
+			window.location.reload();
+		})
+		.catch(function() {
+			alert('Chyba při nahrávání souborů.');
+			input.disabled = false;
+			if (preloader) preloader.style.display = 'none';
+			if (uploadBtn) uploadBtn.style.opacity = '1';
+		});
+
+	input.value = '';
+});
+
+// SortableJS drag & drop
+function initAttachmentsSortable() {
+	document.querySelectorAll('.attachments-sortable-container').forEach(function(container) {
+		if (container._sortableInstance) {
+			try { container._sortableInstance.destroy(); } catch(e) {}
+		}
+
+		container._sortableInstance = new Sortable(container, {
+			handle: '.attachments-drag-handle',
+			animation: 150,
+			ghostClass: 'sortable-ghost',
+			chosenClass: 'sortable-chosen',
+			onEnd: function() {
+				var order = [];
+				container.querySelectorAll('.file-card[data-id]').forEach(function(el) {
+					order.push(parseInt(el.dataset.id));
+				});
+
+				var url = container.dataset.reorderUrl;
+				var formData = new FormData();
+				formData.append('order', JSON.stringify(order));
+
+				fetch(url, { method: 'POST', body: formData });
+			}
+		});
+	});
+}
+
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', initAttachmentsSortable);
+} else {
+	initAttachmentsSortable();
+}
+
+// Lightbox for images
+document.addEventListener('click', function(e) {
+	var link = e.target.closest('.attachment-lightbox');
+	if (!link) return;
+	e.preventDefault();
+	var lb = document.getElementById('attachmentLightbox');
+	document.getElementById('lightboxImage').src = link.href;
+	document.getElementById('lightboxDownload').href = link.href;
+	document.getElementById('lightboxCaption').textContent = link.dataset.name || '';
+	lb.style.display = 'block';
+});
+
+document.getElementById('attachmentLightbox')?.addEventListener('click', function(e) {
+	if (e.target.closest('a') || e.target.closest('button')) return;
+	this.style.display = 'none';
+});
+document.getElementById('lightboxClose')?.addEventListener('click', function() {
+	document.getElementById('attachmentLightbox').style.display = 'none';
+});
+document.addEventListener('keydown', function(e) {
+	if (e.key === 'Escape') {
+		var lb = document.getElementById('attachmentLightbox');
+		var pm = document.getElementById('attachmentPdfModal');
+		if (lb) lb.style.display = 'none';
+		if (pm) { pm.style.display = 'none'; document.getElementById('pdfFrame').src = ''; }
+	}
+});
+
+// PDF preview
+document.addEventListener('click', function(e) {
+	var link = e.target.closest('.attachment-pdf-preview');
+	if (!link) return;
+	e.preventDefault();
+	document.getElementById('pdfFrame').src = link.href;
+	document.getElementById('pdfDownload').href = link.href;
+	document.getElementById('pdfTitle').textContent = link.dataset.name || 'PDF';
+	document.getElementById('attachmentPdfModal').style.display = 'block';
+});
+document.getElementById('pdfClose')?.addEventListener('click', function() {
+	document.getElementById('attachmentPdfModal').style.display = 'none';
+	document.getElementById('pdfFrame').src = '';
+});
+
+// Inline rename
+function saveAttachmentRename(input) {
+	var url = input.dataset.renameUrl;
+	var name = input.value.trim();
+	if (!name || !url) return;
+
+	var formData = new FormData();
+	formData.append('display_name', name);
+
+	fetch(url, { method: 'POST', body: formData })
+		.then(function() {
+			input.style.borderColor = '#22c55e';
+			setTimeout(function() { input.style.borderColor = 'transparent'; }, 800);
+		});
+}
+
+document.addEventListener('blur', function(e) {
+	if (e.target.classList.contains('attachment-rename-input')) saveAttachmentRename(e.target);
+}, true);
+document.addEventListener('keydown', function(e) {
+	if (e.key === 'Enter' && e.target.classList.contains('attachment-rename-input')) {
+		e.preventDefault();
+		e.target.blur();
+	}
+});
+</script>
